@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist",
+  "functions": { "api/index.mjs": { "includeFiles": "dist/source.zip", "maxDuration": 60 } },
+  "routes": [
+    { "src": "/source.zip", "status": 404 },
+    { "src": "/api/(.*)", "dest": "/api/index.mjs" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
