@@ -23,7 +23,9 @@ export function createSupabaseDB(){
   if(/^INSERT INTO sessions/i.test(s))return call("sessions","POST","",{token:a[0],user_id:a[1],expires:a[2]});
   if(/^INSERT INTO attempts/i.test(s))return call("attempts","POST","",{key:a[0],count:a[1],until:a[2]});
   if(/^INSERT INTO attachments/i.test(s))return call("attachments","POST","",{id:a[0],owner:a[1],name:a[2],mime:a[3],data:a[4],created:a[5]});
+  if(/^INSERT INTO materials.*ON CONFLICT/i.test(s))return call("materials","PATCH",`?id=eq.${a[0]}`,{owner:a[1],title:a[2],grade:a[3],subject:a[4],kind:a[5],content:a[6],published:a[7]});
   if(/^INSERT INTO materials/i.test(s))return call("materials","POST","",{id:a[0],owner:a[1],title:a[2],grade:a[3],subject:a[4],kind:a[5],content:a[6],published:a[7],created:a[8]});
+  if(/^UPDATE attempts SET count=count\+1/i.test(s)){const row=(await call("attempts","GET",`?key=eq.${a[0]}&select=count&limit=1`))[0];if(row)await call("attempts","PATCH",`?key=eq.${a[0]}`,{count:(row.count||0)+1});return;}
   if(/^UPDATE users SET email=/i.test(s))return call("users","PATCH",`?id=eq.${a[3]}`,{email:a[0],name:a[1],password:a[2]});
   if(/^UPDATE users SET password=/i.test(s))return call("users","PATCH",`?id=eq.${a[1]}`,{password:a[0]});
   if(/^DELETE FROM sessions WHERE token=/i.test(s))return call("sessions","DELETE",`?token=eq.${a[0]}`);
