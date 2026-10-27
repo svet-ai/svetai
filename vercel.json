@@ -3,7 +3,6 @@
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api.mjs?route=/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
