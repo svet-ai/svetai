@@ -1,0 +1,40 @@
+export function createSupabaseDB(){
+ const base=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_ANON_KEY;
+ if(!base||!key)return null;
+ const headers={apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation"};
+ const call=async(table,method="GET",query="",body)=>{const r=await fetch(`${base}/rest/v1/${table}${query}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data;try{data=text?JSON.parse(text):null}catch{data=null}if(!r.ok)throw new Error(data?.message||text||`Supabase ${r.status}`);return data};
+ const stmt=(sql,args=[])=>({sql,args,bind(...a){return stmt(sql,a)},async first(){return run(sql,args,true)},async all(){return {results:await run(sql,args,false)}},async run(){return run(sql,args,false)}});
+ async function run(sql,a,one){const s=sql.replace(/\s+/g," ").trim();
+  if(/^SELECT \* FROM users WHERE email=/i.test(s))return (await call("users","GET",`?email=eq.${encodeURIComponent(a[0])}&limit=1`))[0]||null;
+  if(/^SELECT \* FROM users WHERE id=/i.test(s))return (await call("users","GET",`?id=eq.${encodeURIComponent(a[0])}&limit=1`))[0]||null;
+  if(/^SELECT id FROM users WHERE role='admin'/i.test(s))return (await call("users","GET","?role=eq.admin&select=id&limit=1"))[0]||null;
+  if(/^SELECT id,email,name,role,created FROM users/i.test(s))return call("users","GET","?select=id,email,name,role,created&order=created.desc");
+  if(/^SELECT password FROM users WHERE id=/i.test(s))return (await call("users","GET",`?id=eq.${encodeURIComponent(a[0])}&select=password&limit=1`))[0]||null;
+  if(/^SELECT u\.id,u\.email,u\.name,u\.role FROM sessions/i.test(s))return (await call("sessions","GET",`?token=eq.${encodeURIComponent(a[0])}&expires=gt.${a[1]}&select=user_id,users(id,email,name,role)&limit=1`))[0]?.users||null;
+  if(/^SELECT \* FROM attempts WHERE key=/i.test(s))return (await call("attempts","GET",`?key=eq.${encodeURIComponent(a[0])}&limit=1`))[0]||null;
+  if(/^SELECT owner FROM materials WHERE id=/i.test(s))return (await call("materials","GET",`?id=eq.${encodeURIComponent(a[0])}&select=owner&limit=1`))[0]||null;
+  if(/^SELECT \* FROM materials WHERE id=/i.test(s))return (await call("materials","GET",`?id=eq.${encodeURIComponent(a[0])}&limit=1`))[0]||null;
+  if(/^SELECT \* FROM attachments WHERE id=/i.test(s))return (await call("attachments","GET",`?id=eq.${encodeURIComponent(a[0])}&limit=1`))[0]||null;
+  if(/^SELECT \* FROM materials ORDER BY/i.test(s))return call("materials","GET","?select=*&order=created.desc&limit=300");
+  if(/^SELECT \* FROM materials WHERE published=1 OR owner=/i.test(s))return call("materials","GET",`?or=(published.eq.1,owner.eq.${a[0]})&order=created.desc&limit=300`);
+  if(/^SELECT \* FROM materials WHERE published=1/i.test(s))return call("materials","GET","?published=eq.1&order=created.desc&limit=300");
+  if(/^SELECT id,name,mime,created FROM attachments WHERE owner=/i.test(s))return call("attachments","GET",`?owner=eq.${a[0]}&select=id,name,mime,created&order=created.desc`);
+  if(/^INSERT (OR IGNORE )?INTO users/i.test(s))return call("users","POST","",{id:a[0],email:a[1],name:a[2],password:a[3],role:a[4],created:a[5]});
+  if(/^INSERT INTO sessions/i.test(s))return call("sessions","POST","",{token:a[0],user_id:a[1],expires:a[2]});
+  if(/^INSERT INTO attempts/i.test(s))return call("attempts","POST","",{key:a[0],count:a[1],until:a[2]});
+  if(/^INSERT INTO attachments/i.test(s))return call("attachments","POST","",{id:a[0],owner:a[1],name:a[2],mime:a[3],data:a[4],created:a[5]});
+  if(/^INSERT INTO materials/i.test(s))return call("materials","POST","",{id:a[0],owner:a[1],title:a[2],grade:a[3],subject:a[4],kind:a[5],content:a[6],published:a[7],created:a[8]});
+  if(/^UPDATE users SET email=/i.test(s))return call("users","PATCH",`?id=eq.${a[3]}`,{email:a[0],name:a[1],password:a[2]});
+  if(/^UPDATE users SET password=/i.test(s))return call("users","PATCH",`?id=eq.${a[1]}`,{password:a[0]});
+  if(/^DELETE FROM sessions WHERE token=/i.test(s))return call("sessions","DELETE",`?token=eq.${a[0]}`);
+  if(/^DELETE FROM sessions WHERE user_id=/i.test(s))return call("sessions","DELETE",`?user_id=eq.${a[0]}`);
+  if(/^DELETE FROM sessions WHERE expires</i.test(s))return call("sessions","DELETE",`?expires=lt.${a[0]}`);
+  if(/^DELETE FROM attempts WHERE key=/i.test(s))return call("attempts","DELETE",`?key=eq.${a[0]}`);
+  if(/^DELETE FROM attachments WHERE id=/i.test(s))return call("attachments","DELETE",`?id=eq.${a[0]}&owner=eq.${a[1]}`);
+  if(/^DELETE FROM attachments WHERE owner=/i.test(s))return call("attachments","DELETE",`?owner=eq.${a[0]}`);
+  if(/^DELETE FROM materials WHERE id=/i.test(s))return call("materials","DELETE",`?id=eq.${a[0]}`);
+  if(/^DELETE FROM users WHERE id=/i.test(s))return call("users","DELETE",`?id=eq.${a[0]}`);
+  throw new Error(`Unsupported DB operation: ${s.slice(0,100)}`);
+ }
+ return {prepare:sql=>stmt(sql),batch:async list=>{for(const x of list)await run(x.sql,x.args,false)}};
+}
