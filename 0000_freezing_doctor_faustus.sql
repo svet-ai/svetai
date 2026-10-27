@@ -1,43 +1,8 @@
-CREATE TABLE `attachments` (
-	`id` text PRIMARY KEY NOT NULL,
-	`owner` text NOT NULL,
-	`name` text NOT NULL,
-	`mime` text NOT NULL,
-	`data` text NOT NULL,
-	`created` integer NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `attempts` (
-	`key` text PRIMARY KEY NOT NULL,
-	`count` integer NOT NULL,
-	`until` integer NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `materials` (
-	`id` text PRIMARY KEY NOT NULL,
-	`owner` text NOT NULL,
-	`title` text NOT NULL,
-	`grade` integer NOT NULL,
-	`subject` text NOT NULL,
-	`kind` text NOT NULL,
-	`content` text NOT NULL,
-	`published` integer DEFAULT 0 NOT NULL,
-	`created` integer NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `sessions` (
-	`token` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`expires` integer NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `users` (
-	`id` text PRIMARY KEY NOT NULL,
-	`email` text NOT NULL,
-	`name` text NOT NULL,
-	`password` text NOT NULL,
-	`role` text NOT NULL,
-	`created` integer NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+create table if not exists public.users (id text primary key,email text unique not null,name text not null,password text not null,role text not null,created bigint not null);
+create table if not exists public.sessions (token text primary key,user_id text not null references public.users(id) on delete cascade,expires bigint not null);
+create table if not exists public.attempts (key text primary key,count integer not null,until bigint not null);
+create table if not exists public.materials (id text primary key,owner text not null references public.users(id) on delete cascade,title text not null,grade integer not null,subject text not null,kind text not null,content text not null,published integer not null default 0,created bigint not null);
+create table if not exists public.attachments (id text primary key,owner text not null references public.users(id) on delete cascade,name text not null,mime text not null,data text not null,created bigint not null);
+create index if not exists sessions_user_idx on public.sessions(user_id);
+create index if not exists materials_owner_idx on public.materials(owner);
+create index if not exists attachments_owner_idx on public.attachments(owner);
