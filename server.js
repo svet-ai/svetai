@@ -96,7 +96,6 @@ export async function api(req,env){
     const geminiRequest=()=>fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',{
      method:'POST',
      headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
-     signal:AbortSignal.timeout(60000),
      body:JSON.stringify(geminiPayload)
     });
     response=await geminiRequest();
@@ -109,13 +108,15 @@ export async function api(req,env){
     response=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
      headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-     signal:AbortSignal.timeout(60000),
      body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1-mini',max_tokens:7000,temperature:0.35,messages:[{role:'system',content:systemPrompt},{role:'user',content:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]})
     });
    }
   } catch(error) {
-   console.error((useGemini?'Gemini':'OpenAI')+' request failed:',error?.name||'request error');
-   return json({error:'ЖИ қызметіне қосылу мүмкін болмады. API кілтін және желі қосылымын тексеріңіз.'},502);
+   console.error((useGemini?'Gemini':'OpenAI')+' request failed:',error?.name||'request error',String(error?.message||'').slice(0,240));
+   const timedOut=error?.name==='TimeoutError'||error?.name==='AbortError';
+   return json({error:timedOut
+    ?'Gemini/OpenAI жауабы күту уақытынан асып кетті. Қысқарақ тапсырмамен қайта көріңіз.'
+    :'ЖИ провайдеріне сұрау жіберілмеді. Vercel Runtime Logs бөлімінен техникалық қатені тексеру қажет.'},502);
   }
   data=await response.json().catch(()=>({}));
   if(!response.ok){
