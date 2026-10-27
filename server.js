@@ -56,7 +56,7 @@ export async function api(req,env){
  }
  if(path.startsWith('/api/files/')&&req.method==='GET'){const f=await stmt('SELECT * FROM attachments WHERE id=? AND owner=?',path.split('/').pop(),user.id).first();if(!f)return json({error:'Табылмады'},404);const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));return new Response(bytes,{headers:{'Content-Type':f.mime,'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(f.name),'X-Content-Type-Options':'nosniff'}});}
  if(path==='/api/generate'&&req.method==='POST'){
-  if(!env.OPENAI_API_KEY)return json({error:'ЖИ API кілті қосылмаған. Vercel → Settings → Environment Variables бөлімінде OPENAI_API_KEY орнатып, Redeploy жасаңыз.'},503);
+  if(!env.GEMINI_API_KEY&&!env.OPENAI_API_KEY)return json({error:'ЖИ API кілті қосылмаған. Vercel Environment Variables бөлімінде GEMINI_API_KEY енгізіп, Redeploy жасаңыз.'},503);
   const topic=String(body.topic||'').trim(),kind=String(body.kind||'ҚМЖ'),grade=Number(body.grade),subject=String(body.subject||'Қазақ әдебиеті'),objective=String(body.objective||'').trim(),language=['kk','ru','en'].includes(body.language)?body.language:'kk';
   if(!topic||topic.length>500)return json({error:'Тақырыпты енгізіңіз (500 таңбаға дейін).'},400);
   if(!Number.isInteger(grade)||grade<1||grade>11)return json({error:'Сыныпты 1–11 аралығында таңдаңыз.'},400);
@@ -84,22 +84,49 @@ export async function api(req,env){
 ОҚУ МАҚСАТЫ: ${objective||'Пайдаланушы нақты оқу мақсатын енгізбеді. Тақырыпқа сай өлшенетін сабақ мақсаттарын құрастыр, ресми код ойдан шығарма.'}
 Қосымша параметрлер: ${JSON.stringify({slides:body.slides||6})}
 Алдымен материалдың өзін бер. Қысқа кіріспе жазба.`;
-  let response;
+  let response,data;
+  const useGemini=Boolean(env.GEMINI_API_KEY);
   try {
-   response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1-mini',max_tokens:7000,temperature:0.35,messages:[{role:'system',content:systemPrompt},{role:'user',content:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]})});
+   if(useGemini){
+    response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{
+     method:'POST',
+     headers:{'Content-Type':'application/json'},
+     signal:AbortSignal.timeout(60000),
+     body:JSON.stringify({
+      systemInstruction:{parts:[{text:systemPrompt}]},
+      contents:[{role:'user',parts:[{text:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]}],
+      generationConfig:{maxOutputTokens:7000,temperature:0.35}
+     })
+    });
+   }else{
+    response=await fetch('https://api.openai.com/v1/chat/completions',{
+     method:'POST',
+     headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
+     signal:AbortSignal.timeout(60000),
+     body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1-mini',max_tokens:7000,temperature:0.35,messages:[{role:'system',content:systemPrompt},{role:'user',content:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]})
+    });
+   }
   } catch(error) {
-   console.error('OpenAI request failed:',error?.name||'request error');
-   return json({error:'ЖИ қызметіне қосылу мүмкін болмады. API кілтін, интернет сұрауын және лимитті тексеріңіз.'},502);
+   console.error((useGemini?'Gemini':'OpenAI')+' request failed:',error?.name||'request error');
+   return json({error:'ЖИ қызметіне қосылу мүмкін болмады. API кілтін және желі қосылымын тексеріңіз.'},502);
   }
-  const data=await response.json().catch(()=>({}));
+  data=await response.json().catch(()=>({}));
   if(!response.ok){
-   console.error('OpenAI API returned status:',response.status,'type:',data?.error?.type||'unknown');
-   const message=response.status===401?'OPENAI_API_KEY жарамсыз немесе ескірген. Vercel Environment Variables бөліміндегі кілтті тексеріңіз.':response.status===429?'OpenAI API лимиті немесе төлем балансы жеткіліксіз. OpenAI Platform Billing және Usage бөлімін тексеріңіз.':'ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). Vercel Runtime Logs бөлімін тексеріңіз.';
+   console.error((useGemini?'Gemini':'OpenAI')+' API returned status:',response.status,'type:',data?.error?.status||data?.error?.type||'unknown');
+   let message;
+   if(response.status===401||response.status===403) message=useGemini?'GEMINI_API_KEY жарамсыз немесе Gemini API қолжетімді емес. Google AI Studio-дан жаңа кілт алып, Vercel-де жаңартыңыз.':'OPENAI_API_KEY жарамсыз немесе ескірген. Vercel Environment Variables бөліміндегі кілтті тексеріңіз.';
+   else if(response.status===429) message=useGemini?'Gemini API тегін лимиті біткен немесе сұрау жиілігі жоғары. Кейінірек қайталап көріңіз және AI Studio лимитін тексеріңіз.':'OpenAI API лимиті немесе төлем балансы жеткіліксіз. OpenAI Platform Billing және Usage бөлімін тексеріңіз.';
+   else message='ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). API кілтін, модель қолжетімділігін және Vercel Runtime Logs тексеріңіз.';
    return json({error:message},502);
   }
-  const content=String(data.choices?.[0]?.message?.content||'').trim();
-  if(!content)return json({error:'ЖИ бос жауап қайтарды. Қайталап көріңіз.'},502);
-  return json({content,model:data.model||env.OPENAI_MODEL||'gpt-4.1-mini'});
+  const content=useGemini
+   ?String(data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n')||'').trim()
+   :String(data.choices?.[0]?.message?.content||'').trim();
+  if(!content){
+   if(useGemini&&data.promptFeedback?.blockReason)return json({error:'Gemini сұрауды қауіпсіздік сүзгісіне байланысты орындамады. Тақырыпты басқаша жазыңыз.'},502);
+   return json({error:'ЖИ бос жауап қайтарды. Қайталап көріңіз.'},502);
+  }
+  return json({content,model:useGemini?'gemini-2.5-flash':(data.model||env.OPENAI_MODEL||'gpt-4.1-mini'),provider:useGemini?'Gemini':'OpenAI'});
  }
  return json({error:'Табылмады'},404);
 }
