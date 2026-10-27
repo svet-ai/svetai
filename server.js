@@ -88,9 +88,9 @@ export async function api(req,env){
   const useGemini=Boolean(env.GEMINI_API_KEY);
   try {
    if(useGemini){
-    response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{
+    response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',{
      method:'POST',
-     headers:{'Content-Type':'application/json'},
+     headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
      signal:AbortSignal.timeout(60000),
      body:JSON.stringify({
       systemInstruction:{parts:[{text:systemPrompt}]},
@@ -126,7 +126,7 @@ export async function api(req,env){
    if(useGemini&&data.promptFeedback?.blockReason)return json({error:'Gemini сұрауды қауіпсіздік сүзгісіне байланысты орындамады. Тақырыпты басқаша жазыңыз.'},502);
    return json({error:'ЖИ бос жауап қайтарды. Қайталап көріңіз.'},502);
   }
-  return json({content,model:useGemini?'gemini-2.5-flash':(data.model||env.OPENAI_MODEL||'gpt-4.1-mini'),provider:useGemini?'Gemini':'OpenAI'});
+  return json({content,model:useGemini?'gemini-3.8-flash':(data.model||env.OPENAI_MODEL||'gpt-4.1-mini'),provider:useGemini?'Gemini':'OpenAI'});
  }
  return json({error:'Табылмады'},404);
 }
