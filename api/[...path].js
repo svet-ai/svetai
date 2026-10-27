@@ -87,7 +87,7 @@ export default async function handler(req, res) {
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
-    const detail = String(error?.message || 'Белгісіз сервер қатесі').replace(/libsql://[^\s]+/gi, '[database-url]').slice(0, 240);
+    const detail = String(error?.message || 'Белгісіз сервер қатесі').replace(/libsql:\/\/[^\s]+/gi, '[database-url]').slice(0, 240);
     res.end(JSON.stringify({ error: 'API қатесі: ' + detail + '. TURSO_DATABASE_URL және TURSO_AUTH_TOKEN баптауларын да тексеріңіз.' }));
   }
 }
