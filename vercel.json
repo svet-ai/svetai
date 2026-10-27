@@ -2,12 +2,9 @@
   "version": 2,
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist",
-  "builds": [
-    { "src": "api.mjs", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api.mjs" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "functions": { "api.mjs": { "runtime": "nodejs22.x" } },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api.mjs" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
