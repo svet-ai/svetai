@@ -86,18 +86,25 @@ export async function api(req,env){
 Алдымен материалдың өзін бер. Қысқа кіріспе жазба.`;
   let response,data;
   const useGemini=Boolean(env.GEMINI_API_KEY);
+  const geminiPayload={
+   systemInstruction:{parts:[{text:systemPrompt}]},
+   contents:[{role:'user',parts:[{text:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]}],
+   generationConfig:{maxOutputTokens:7000,temperature:0.35}
+  };
   try {
    if(useGemini){
-    response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',{
+    const geminiRequest=()=>fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',{
      method:'POST',
      headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
      signal:AbortSignal.timeout(60000),
-     body:JSON.stringify({
-      systemInstruction:{parts:[{text:systemPrompt}]},
-      contents:[{role:'user',parts:[{text:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]}],
-      generationConfig:{maxOutputTokens:7000,temperature:0.35}
-     })
+     body:JSON.stringify(geminiPayload)
     });
+    response=await geminiRequest();
+    if([500,503].includes(response.status)){
+     console.warn('Gemini temporary server issue; retrying once:',response.status);
+     await new Promise(resolve=>setTimeout(resolve,1200));
+     response=await geminiRequest();
+    }
    }else{
     response=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -116,6 +123,7 @@ export async function api(req,env){
    let message;
    if(response.status===401||response.status===403) message=useGemini?'GEMINI_API_KEY жарамсыз немесе Gemini API қолжетімді емес. Google AI Studio-дан жаңа кілт алып, Vercel-де жаңартыңыз.':'OPENAI_API_KEY жарамсыз немесе ескірген. Vercel Environment Variables бөліміндегі кілтті тексеріңіз.';
    else if(response.status===429) message=useGemini?'Gemini API тегін лимиті біткен немесе сұрау жиілігі жоғары. Кейінірек қайталап көріңіз және AI Studio лимитін тексеріңіз.':'OpenAI API лимиті немесе төлем балансы жеткіліксіз. OpenAI Platform Billing және Usage бөлімін тексеріңіз.';
+   else if(useGemini&&[500,503].includes(response.status)) message='Google Gemini қызметі уақытша шамадан тыс жүктелген (503). Жүйе сұрауды автоматты түрде қайта жіберіп көрді. 1–2 минуттан кейін қайта басыңыз.';
    else message='ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). API кілтін, модель қолжетімділігін және Vercel Runtime Logs тексеріңіз.';
    return json({error:message},502);
   }
