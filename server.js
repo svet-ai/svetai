@@ -56,9 +56,50 @@ export async function api(req,env){
  }
  if(path.startsWith('/api/files/')&&req.method==='GET'){const f=await stmt('SELECT * FROM attachments WHERE id=? AND owner=?',path.split('/').pop(),user.id).first();if(!f)return json({error:'Табылмады'},404);const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));return new Response(bytes,{headers:{'Content-Type':f.mime,'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(f.name),'X-Content-Type-Options':'nosniff'}});}
  if(path==='/api/generate'&&req.method==='POST'){
-  if(!env.OPENAI_API_KEY)return json({error:'ЖИ қызметі қосылмаған. Қазір құрылымды үлгі режимін пайдаланыңыз.'},503);
-  if(!body.topic||String(body.topic).length>500)return json({error:'Тақырыпты енгізіңіз'},400);
-  const response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model:'gpt-4.1-mini',max_tokens:4500,messages:[{role:'system',content:'You are a qualified Kazakhstan school teacher. Produce accurate, detailed, editable educational material in the requested language. Include concrete tasks, answers, criteria, descriptors and timing when applicable. Do not invent official curriculum codes. Clearly mark teacher-review requirements. Plain text only.'},{role:'user',content:JSON.stringify({type:body.kind,topic:body.topic,grade:body.grade,subject:body.subject,language:body.language,objective:body.objective,slides:body.slides})}]})});if(!response.ok)return json({error:'ЖИ қызметі жауап бермеді. API кілті мен лимитті тексеріңіз.'},502);const data=await response.json();return json({content:data.choices?.[0]?.message?.content||''});
+  if(!env.OPENAI_API_KEY)return json({error:'ЖИ API кілті қосылмаған. Vercel → Settings → Environment Variables бөлімінде OPENAI_API_KEY орнатып, Redeploy жасаңыз.'},503);
+  const topic=String(body.topic||'').trim(),kind=String(body.kind||'ҚМЖ'),grade=Number(body.grade),subject=String(body.subject||'Қазақ әдебиеті'),objective=String(body.objective||'').trim(),language=['kk','ru','en'].includes(body.language)?body.language:'kk';
+  if(!topic||topic.length>500)return json({error:'Тақырыпты енгізіңіз (500 таңбаға дейін).'},400);
+  if(!Number.isInteger(grade)||grade<1||grade>11)return json({error:'Сыныпты 1–11 аралығында таңдаңыз.'},400);
+  const languageName=language==='kk'?'Қазақ тілінде':language==='ru'?'На русском языке':'In English';
+  const systemPrompt=`Сен Қазақстан мектебінің тәжірибелі пән мұғалімі, әдіскер және оқу материалдарын құрастырушысысың. Міндетің — мұғалімге бірден өңдеп, қолдануға болатын сапалы материал жасау. Жауаптың бәрін ${languageName} жаз. Тақырыпты қайталайтын бос жалпы шаблон жасама: нақты тапсырмалар, мысалдар, бағалау, жауаптар және сабаққа дайын құрылым бер.
+
+ЖАЛПЫ ЕРЕЖЕЛЕР:
+- Сынып: ${grade}; пән: ${subject}; материал түрі: ${kind}; тақырып: «${topic}».
+- Оқу мақсаты берілсе, оны дәл сақта. Берілмесе, ресми оқу мақсатының кодын ойдан шығарма; мазмұнға сай өлшенетін сабақ мақсаттарын жаз және оқу мақсатының кодын мұғалім нақтылайтынын белгіле.
+- Қазақстан мектептерінің жас ерекшелігіне, оқу тіліне және пәнге сәйкестендір. Қазақ тілінің емлесі мен тыныс белгілерін сақта.
+- Нақты мәтінге тәуелді тапсырмаларда дерек/дәйексөзді ойдан құрастырма. Егер бастапқы мәтін берілмесе, мұғалім таңдайтын мәтінді ашық көрсетіп, мәтінге тәуелді жауап кілтін адал белгіле; ал қалған тапсырмаларды толық жаз.
+- Әр тапсырмаға нақты нұсқаулық, күтілетін жауап/жауап үлгісі, бағалау критерийі, дескриптор және балл бер. Жалпы баллдарды есептеп, сәйкестігін тексер.
+- Мәтінді Markdown тақырыптары мен кестелерін қолданып, оқуға ыңғайлы етіп жаз. «ЖИ жасамаған», «құрылымды үлгі» сияқты жалған ескертулерді қоспа.
+- Мұғалім тексеруі қажет нақты оқу мақсаты/мәтін болса, соңында қысқа «Мұғалімге ескерту» бөлімін бер.
+
+МАТЕРИАЛ ТҮРІНЕ ҚОЙЫЛАТЫН ТАЛАПТАР:
+1) ҚМЖ / Ашық сабақ: 45 минуттық жоспар; бөлімдер мен сабақ тақырыбы; оқу мақсаты; өлшенетін сабақ мақсаттары; бағалау критерийлері; құндылықтар; сабақтың басы, ортасы, соңы минуттары 45 минутқа дәл тең; әр кезеңге мұғалім әрекеті, оқушы әрекеті, нақты тапсырма, дескриптор/балл, ресурстар; саралау; қалыптастырушы бағалау; рефлексия; үй тапсырмасы. Бос жалпы сөздермен шектелме.
+2) БЖБ / ТЖБ: спецификация/мақсаттар; орындау уақыты; бөлімдер мен тапсырмалар; әр тапсырма баллы; толық жауап кілті немесе бағалау нұсқаулығы; дескрипторлар; жиынтық балл; балл қою кестесі. ТЖБ-да тоқсандық қамтуды көрсету. Жоқ мәліметті ойдан шығармай, мұғалім нақтылайтын жерін белгіле.
+3) Жұмыс парағы / PISA тапсырмасы: кемінде 3 әртүрлі нақты тапсырма; оқушыға арналған нұсқаулық; жауап жазатын орынның орнына мәтіндік сызықтар; дескриптор, балл және мұғалімге арналған жауап кілті.
+4) Презентация: сұралған слайд саны (${Math.max(3,Math.min(15,Number(body.slides)||6)}); әр слайдқа тақырып, 3–5 мазмұнды тармақ, қажет болса тапсырма және мұғалім ескертпесі; соңында қорытынды/рефлексия.
+5) Ойын тапсырмасы / Сценарий / Комикс: ойын мақсаты, ережесі, дайын карточкалар/сұрақтар/кезеңдер, дұрыс жауаптары, ұпай жүйесі және жеңімпазды анықтау тәсілі. Ойын нақты ойнатуға жарасын.
+6) Эссе / Мақала / Ғылыми жоба: мақсатты аудитория, құрылым, тақырыпқа сай мазмұн, дәлел/мысал, қорытынды және пайдаланылған дереккөздер бөлімі; дереккөздерді ойдан бар деп көрсетпе.
+7) Тәрбие сағаты: уақытқа бөлінген жоспар, сценарий, оқушы әрекеті, талқылау сұрақтары және кері байланыс.
+
+ОҚУ МАҚСАТЫ: ${objective||'Пайдаланушы нақты оқу мақсатын енгізбеді. Тақырыпқа сай өлшенетін сабақ мақсаттарын құрастыр, ресми код ойдан шығарма.'}
+Қосымша параметрлер: ${JSON.stringify({slides:body.slides||6})}
+Алдымен материалдың өзін бер. Қысқа кіріспе жазба.`;
+  let response;
+  try {
+   response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1-mini',max_tokens:7000,temperature:0.35,messages:[{role:'system',content:systemPrompt},{role:'user',content:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]})});
+  } catch(error) {
+   console.error('OpenAI request failed:',error?.name||'request error');
+   return json({error:'ЖИ қызметіне қосылу мүмкін болмады. API кілтін, интернет сұрауын және лимитті тексеріңіз.'},502);
+  }
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+   console.error('OpenAI API returned status:',response.status,'type:',data?.error?.type||'unknown');
+   const message=response.status===401?'OPENAI_API_KEY жарамсыз немесе ескірген. Vercel Environment Variables бөліміндегі кілтті тексеріңіз.':response.status===429?'OpenAI API лимиті немесе төлем балансы жеткіліксіз. OpenAI Platform Billing және Usage бөлімін тексеріңіз.':'ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). Vercel Runtime Logs бөлімін тексеріңіз.';
+   return json({error:message},502);
+  }
+  const content=String(data.choices?.[0]?.message?.content||'').trim();
+  if(!content)return json({error:'ЖИ бос жауап қайтарды. Қайталап көріңіз.'},502);
+  return json({content,model:data.model||env.OPENAI_MODEL||'gpt-4.1-mini'});
  }
  return json({error:'Табылмады'},404);
 }
