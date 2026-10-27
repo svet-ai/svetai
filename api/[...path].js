@@ -40,6 +40,11 @@ export default async function handler(req, res) {
     }
     const origin = 'https://' + (req.headers.host || 'svet-ai.vercel.app');
     const url = new URL(req.url || '/', origin);
+    // Vercel catch-all functions can expose the route as either /api/... or /...;
+    // normalize it so server.js always receives the expected /api/... pathname.
+    if (!url.pathname.startsWith('/api/')) {
+      url.pathname = '/api' + (url.pathname.startsWith('/') ? url.pathname : '/' + url.pathname);
+    }
     const request = new Request(url.toString(), {
       method: req.method || 'GET',
       headers,
