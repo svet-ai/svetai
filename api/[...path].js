@@ -2,7 +2,6 @@ import { readFile } from 'node:fs/promises';
 import { createClient } from '@libsql/client';
 import { api } from '../server.js';
 
-let schemaReady;
 function createTursoDB() {
   const url = process.env.TURSO_DATABASE_URL;
   const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -27,8 +26,8 @@ function createTursoDB() {
   });
 
   async function ensureSchema() {
-    // Create missing tables automatically. Safe to run on each cold start.
-    schemaReady ||= client.batch([
+    // Execute schema statements individually for compatibility with Turso/libSQL batch modes.
+    const statements = [
       'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL, created INTEGER NOT NULL)',
       'CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL)',
       'CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL)',
@@ -37,11 +36,8 @@ function createTursoDB() {
       'CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)',
       'CREATE INDEX IF NOT EXISTS materials_owner_idx ON materials(owner)',
       'CREATE INDEX IF NOT EXISTS attachments_owner_idx ON attachments(owner)',
-    ].map(sql => ({ sql, args: [] })), 'write').catch(error => {
-      schemaReady = undefined;
-      throw error;
-    });
-    await schemaReady;
+    ];
+    for (const sql of statements) await client.execute({ sql });
   }
 
   return {
@@ -87,10 +83,11 @@ export default async function handler(req, res) {
     res.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {
     // Log the technical reason in Vercel Runtime Logs without exposing credentials.
-    console.error('Turso API handler failed:', error?.message || error);
+    console.error('Turso API handler failed:', error?.stack || error?.message || error);
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
-    res.end(JSON.stringify({ error: 'Дерекқорға қосылу сәтсіз. Vercel Environment Variables: TURSO_DATABASE_URL және TURSO_AUTH_TOKEN мәндерін тексеріңіз.' }));
+    const detail = String(error?.message || 'Белгісіз сервер қатесі').replace(/libsql://[^\s]+/gi, '[database-url]').slice(0, 240);
+    res.end(JSON.stringify({ error: 'API қатесі: ' + detail + '. TURSO_DATABASE_URL және TURSO_AUTH_TOKEN баптауларын да тексеріңіз.' }));
   }
 }
