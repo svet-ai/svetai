@@ -10,3 +10,13 @@
 @media(min-width:761px){.nav-item{font-size:12px}.side-label{font-size:9px}.breadcrumb{font-size:11px}.eyebrow{font-size:9px}.date-badge{font-size:10px}.hero-content>p{font-size:12px;max-width:380px}.hero-link{font-size:11px}.hero-foot{font-size:9px}.hero-badge{font-size:8px}.quick-card h3{font-size:13px}.quick-card p{font-size:10px}.material-body h3{font-size:13px;min-height:44px;max-height:45px}.material-meta{font-size:9px}.card-bottom{font-size:9px}.section-heading p{font-size:11px}.text-link{font-size:11px}.chip{font-size:10px}.search-box input{font-size:12px}.game-promo p{font-size:10px}.qr-promo p{font-size:10px}.profile strong{font-size:12px}.profile small{font-size:10px}.help-card span{font-size:10px}.help-card strong{font-size:13px}.help-card>div{font-size:11px}footer{font-size:10px}footer small{font-size:9px}.cover-label{font-size:8px}.quote>div{font-size:8px}.fine-print{font-size:10px}.integration-state{font-size:10px}}
 @media(max-width:760px){.quick-card p{font-size:10px}.material-body h3{font-size:12px;min-height:42px;max-height:43px}.material-meta,.card-bottom{font-size:8px}.cover-label{font-size:7px}.hero-foot{font-size:8px}.hero-content>p{font-size:11px}.section-heading p{font-size:10px}.game-promo p{font-size:10px}.filter-row .chip{font-size:10px}.hero-badge{font-size:7px}.qr-promo p{font-size:10px}.fine-print{font-size:10px}.integration-state{font-size:10px}}
 .review-queue{margin-bottom:22px}.review-queue .file-row>.text-link{margin-right:auto;white-space:normal;text-align:left}.review-queue .file-row{gap:6px}
+
+/* Consistent typography for lesson tools and material editor */
+:root{font-family:"Noto Sans","Segoe UI",Arial,sans-serif;font-size:16px;font-synthesis:none;text-rendering:optimizeLegibility}
+.tools-grid,.tools-grid *,.generator-form,.generator-form *,.editor-panel,.editor-panel *{font-family:"Noto Sans","Segoe UI",Arial,sans-serif;letter-spacing:normal}
+.tools-grid label,.generator-form label{font-size:14px;line-height:1.55;font-weight:600}
+.tools-grid input,.tools-grid textarea,.tools-grid select,.generator-form input,.generator-form textarea,.generator-form select,.editor{font:400 15px/1.6 "Noto Sans","Segoe UI",Arial,sans-serif;letter-spacing:normal}
+.editor-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0 8px}
+.editor-tools .muted{font-size:12px;line-height:1.5;max-width:560px}
+.editor-tools .btn{flex-shrink:0}
+@media(max-width:600px){.editor-tools{align-items:stretch}.editor-tools .btn{width:100%;justify-content:center}.editor-tools .muted{max-width:none}}
