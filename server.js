@@ -135,7 +135,7 @@ export async function api(req,env){
    else message='ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). API кілтін, модель қолжетімділігін және Vercel Runtime Logs тексеріңіз.';
    return json({error:message},502);
   }
-  const content=useGemini
+  let content=useGemini
    ?String(data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n')||'').trim()
    :String(data.choices?.[0]?.message?.content||'').trim();
   if(!content){
@@ -162,8 +162,8 @@ export async function api(req,env){
     '| Сабақтың мақсаты | Оқу мақсатына сай білім мен дағдыларды меңгеру, тапсырмалар арқылы қолдану |',
     '| Құндылықтарға баулу | Ынтымақтастық, жауапкершілік, құрмет |',
     ''
-   ].join('\\n');
-   content=passport+'\\n'+content;
+   ].join('\n');
+   content=passport+'\n'+content;
   }
   return json({content,model:useGemini?'gemini-3.8-flash':(data.model||env.OPENAI_MODEL||'gpt-4.1-mini'),provider:useGemini?'Gemini':'OpenAI'});
  }
