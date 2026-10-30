@@ -89,61 +89,7 @@ export async function api(req,env){
 Қосымша параметрлер: ${JSON.stringify({slides:body.slides||6})}
 Алдымен материалдың өзін бер. Қысқа кіріспе жазба.`;
   if(kind.toLowerCase().includes('қмж')) {
-   // Enforce the required ҚМЖ structure at generation time.
-  }
-  let response,data;
-  const useGemini=Boolean(env.GEMINI_API_KEY);
-  const geminiPayload={
-   systemInstruction:{parts:[{text:systemPrompt}]},
-   contents:[{role:'user',parts:[{text:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]}],
-   generationConfig:{maxOutputTokens:7000,temperature:0.35}
-  };
-  try {
-   if(useGemini){
-    const geminiRequest=()=>fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
-     body:JSON.stringify(geminiPayload)
-    });
-    response=await geminiRequest();
-    if([500,503].includes(response.status)){
-     console.warn('Gemini temporary server issue; retrying once:',response.status);
-     await new Promise(resolve=>setTimeout(resolve,1200));
-     response=await geminiRequest();
-    }
-   }else{
-    response=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-     body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1-mini',max_tokens:7000,temperature:0.35,messages:[{role:'system',content:systemPrompt},{role:'user',content:'Осы деректер бойынша толық материал жаса: '+JSON.stringify({kind,topic,grade,subject,objective,language,slides:body.slides||6})}]})
-    });
-   }
-  } catch(error) {
-   console.error((useGemini?'Gemini':'OpenAI')+' request failed:',error?.name||'request error',String(error?.message||'').slice(0,240));
-   const timedOut=error?.name==='TimeoutError'||error?.name==='AbortError';
-   return json({error:timedOut
-    ?'Gemini/OpenAI жауабы күту уақытынан асып кетті. Қысқарақ тапсырмамен қайта көріңіз.'
-    :'ЖИ провайдеріне сұрау жіберілмеді. Vercel Runtime Logs бөлімінен техникалық қатені тексеру қажет.'},502);
-  }
-  data=await response.json().catch(()=>({}));
-  if(!response.ok){
-   console.error((useGemini?'Gemini':'OpenAI')+' API returned status:',response.status,'type:',data?.error?.status||data?.error?.type||'unknown');
-   let message;
-   if(response.status===401||response.status===403) message=useGemini?'GEMINI_API_KEY жарамсыз немесе Gemini API қолжетімді емес. Google AI Studio-дан жаңа кілт алып, Vercel-де жаңартыңыз.':'OPENAI_API_KEY жарамсыз немесе ескірген. Vercel Environment Variables бөліміндегі кілтті тексеріңіз.';
-   else if(response.status===429) message=useGemini?'Gemini API тегін лимиті біткен немесе сұрау жиілігі жоғары. Кейінірек қайталап көріңіз және AI Studio лимитін тексеріңіз.':'OpenAI API лимиті немесе төлем балансы жеткіліксіз. OpenAI Platform Billing және Usage бөлімін тексеріңіз.';
-   else if(useGemini&&[500,503].includes(response.status)) message='Google Gemini қызметі уақытша шамадан тыс жүктелген (503). Жүйе сұрауды автоматты түрде қайта жіберіп көрді. 1–2 минуттан кейін қайта басыңыз.';
-   else message='ЖИ API сұрауы сәтсіз аяқталды ('+response.status+'). API кілтін, модель қолжетімділігін және Vercel Runtime Logs тексеріңіз.';
-   return json({error:message},502);
-  }
-  let content=useGemini
-   ?String(data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n')||'').trim()
-   :String(data.choices?.[0]?.message?.content||'').trim();
-  if(!content){
-   if(useGemini&&data.promptFeedback?.blockReason)return json({error:'Gemini сұрауды қауіпсіздік сүзгісіне байланысты орындамады. Тақырыпты басқаша жазыңыз.'},502);
-   return json({error:'ЖИ бос жауап қайтарды. Қайталап көріңіз.'},502);
-  }
-  if(kind.toLowerCase().includes('қмж')) {
-   const esc=v=>String(v??'').replace(/\\|/g,'\\\\|').replace(/\\r?\\n/g,' ');
+   const esc=v=>String(v??'').replace(/\|/g,'\\|').replace(/\r?\n/g,' ');
    const passport=[
     '| ҚМЖ құжаты | Мәлімет |',
     '|---|---|',
@@ -162,10 +108,10 @@ export async function api(req,env){
     '',
     '## САБАҚТЫҢ БАРЫСЫ',
     ''
-   ].join('\\n');
-   const lessonIndex=content.search(/#{0,3}\\s*САБАҚТЫҢ\\s+БАРЫСЫ/i);
-   if(lessonIndex>=0) content=content.slice(lessonIndex).replace(/^#{0,3}\\s*САБАҚТЫҢ\\s+БАРЫСЫ\\s*/i,'');
-   content=passport+'\\n'+content;
+   ].join('\n');
+   const lessonIndex=content.search(/#{0,3}\s*САБАҚТЫҢ\s+БАРЫСЫ/i);
+   if(lessonIndex>=0) content=content.slice(lessonIndex).replace(/^#{0,3}\s*САБАҚТЫҢ\s+БАРЫСЫ\s*/i,'');
+   content=passport+'\n'+content;
   }
   return json({content,model:useGemini?'gemini-3.8-flash':(data.model||env.OPENAI_MODEL||'gpt-4.1-mini'),provider:useGemini?'Gemini':'OpenAI'});
  }
