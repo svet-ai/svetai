@@ -88,6 +88,9 @@ export async function api(req,env){
 ОҚУ МАҚСАТЫ: ${objective||'Пайдаланушы нақты оқу мақсатын енгізбеді. Тақырыпқа сай өлшенетін сабақ мақсаттарын құрастыр, ресми код ойдан шығарма.'}
 Қосымша параметрлер: ${JSON.stringify({slides:body.slides||6})}
 Алдымен материалдың өзін бер. Қысқа кіріспе жазба.`;
+  if(kind.toLowerCase().includes('қмж')) {
+   // Enforce the required ҚМЖ structure at generation time.
+  }
   let response,data;
   const useGemini=Boolean(env.GEMINI_API_KEY);
   const geminiPayload={
